@@ -1,49 +1,49 @@
-def encode(data):
+type Bencodable = str | int | bytes | list[Bencodable] | dict[str | bytes, Bencodable]
+
+
+def encode(data: Bencodable) -> bytes:
     if isinstance(data, str):
         data = data.encode()
 
-    if isinstance(data, int):
-        return b"i" + str(data).encode("ascii") + b"e"
-
-    elif isinstance(data, bytes):
-        return str(len(data)).encode("ascii") + b":" + data
-
-    elif isinstance(data, list):
-        return b"l" + b"".join(encode(item) for item in data) + b"e"
-
-    elif isinstance(data, dict):
+    if isinstance(data, dict):
         return (
             b"d"
             + b"".join(encode(key) + encode(data[key]) for key in sorted(data))
             + b"e"
         )
 
+    elif isinstance(data, list):
+        return b"l" + b"".join(encode(item) for item in data) + b"e"
+
+    elif isinstance(data, int):
+        return b"i" + str(data).encode("ascii") + b"e"
+
     else:
-        raise TypeError(f"Value: {data!r} is of invalid type: {type(data).__name__}")
+        return str(len(data)).encode("ascii") + b":" + data
 
 
-def decode(data):
-    def parse_int(data):
+def decode(data: bytes) -> Bencodable:
+    def parse_int(data: bytes) -> tuple[int, int]:
         end_index = data.index(b"e")
         return int(data[1:end_index]), end_index + 1
 
-    def parse_bytes(data):
+    def parse_bytes(data: bytes) -> tuple[bytes, int]:
         colon_index = data.index(b":")
         length = int(data[:colon_index])
         start_index = colon_index + 1
         end_index = start_index + length
         return data[start_index:end_index], end_index
 
-    def parse_list(data):
-        result = []
+    def parse_list(data: bytes) -> tuple[list[Bencodable], int]:
+        result: list[Bencodable] = []
         index = 1
         while data[index] != ord("e"):
             item, index = parse_item(data[index:])
             result.append(item)
         return result, index + 1
 
-    def parse_dict(data):
-        result = {}
+    def parse_dict(data: bytes) -> tuple[dict[str | bytes, Bencodable], int]:
+        result: dict[str | bytes, Bencodable] = {}
         index = 1
         while data[index] != ord("e"):
             key, index_offset = parse_bytes(data[index:])
@@ -53,7 +53,7 @@ def decode(data):
             result[key] = value
         return result, index + 1
 
-    def parse_item(data):
+    def parse_item(data: bytes) -> tuple[Bencodable, int]:
         first_char = data[0]
 
         if first_char == ord("i"):
