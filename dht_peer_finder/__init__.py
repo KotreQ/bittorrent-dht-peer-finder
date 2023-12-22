@@ -1,7 +1,7 @@
 import socket
 from random import randbytes
 
-import bencode
+from . import bencode
 
 
 class DHTConnection:
