@@ -1,4 +1,5 @@
-type Bencodable = str | int | bytes | list[Bencodable] | dict[str | bytes, Bencodable]
+type Bencodable = str | int | bytes | list[Bencodable] | BencodableDict
+type BencodableDict = dict[str | bytes, Bencodable]
 
 
 def encode(data: Bencodable) -> bytes:
@@ -42,8 +43,8 @@ def decode(data: bytes) -> Bencodable:
             result.append(item)
         return result, index + 1
 
-    def parse_dict(data: bytes) -> tuple[dict[str | bytes, Bencodable], int]:
-        result: dict[str | bytes, Bencodable] = {}
+    def parse_dict(data: bytes) -> tuple[BencodableDict, int]:
+        result: BencodableDict = {}
         index = 1
         while data[index] != ord("e"):
             key, index_offset = parse_bytes(data[index:])
