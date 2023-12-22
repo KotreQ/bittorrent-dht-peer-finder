@@ -1,13 +1,9 @@
-import re
 import socket
 from random import randbytes
 from typing import Self
 
 from . import bencode
-
-IP_REGEX = re.compile(
-    r"^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$"
-)
+from .regex import IP_REGEX
 
 
 def bytes_xor(bytesA: bytes, bytesB: bytes) -> bytes:
