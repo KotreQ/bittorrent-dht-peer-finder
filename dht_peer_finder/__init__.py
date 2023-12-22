@@ -1,7 +1,43 @@
+import re
 import socket
 from random import randbytes
+from typing import Self
 
 from . import bencode
+
+IP_REGEX = re.compile(
+    r"^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$"
+)
+
+
+def bytes_xor(bytesA: bytes, bytesB: bytes) -> bytes:
+    assert len(bytesA) == len(bytesB)
+    return bytes([byteA ^ byteB for byteA, byteB in zip(bytesA, bytesB)])
+
+
+class NodeID:
+    def __init__(self, node_id: bytes):
+        assert len(node_id) == 20
+        self.node_id = node_id
+
+    def distance(self, other: Self):
+        byte_distance = bytes_xor(self.node_id, other.node_id)
+        return int.from_bytes(byte_distance, "big")
+
+
+class IpAddrPortInfo:
+    def __init__(self, ip: str, port: int):
+        ip_match = IP_REGEX.match(ip)
+        assert ip_match
+
+        self.ip = list(map(int, ip_match.groups()))
+        self.port = port
+
+
+class NodeInfo:
+    def __init__(self, node_id: NodeID, ip_addr_port: IpAddrPortInfo):
+        self.node_id = node_id
+        self.ip_addr_port = ip_addr_port
 
 
 class DHTConnection:
