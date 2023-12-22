@@ -29,11 +29,27 @@ class IpAddrPortInfo:
         self.ip = list(map(int, ip_match.groups()))
         self.port = port
 
+    @classmethod
+    def from_compact(cls, compact: bytes):
+        assert len(compact) == 6
+        return cls(
+            socket.inet_ntop(socket.AF_INET, compact[:4]),
+            int.from_bytes(compact[4:], "big"),
+        )
+
 
 class NodeInfo:
     def __init__(self, node_id: NodeID, ip_addr_port: IpAddrPortInfo):
         self.node_id = node_id
         self.ip_addr_port = ip_addr_port
+
+    @classmethod
+    def from_compact(cls, compact: bytes):
+        assert len(compact) == 26
+        return cls(
+            NodeID(compact[:20]),
+            IpAddrPortInfo.from_compact(compact[20:]),
+        )
 
 
 class DHTConnection:
