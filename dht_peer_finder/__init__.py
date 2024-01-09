@@ -58,7 +58,7 @@ class DHTConnection:
     def __init__(
         self, dht_addr: tuple[str, int], *, max_retries: int = 10, timeout: float = 1
     ):
-        self.node_id = randbytes(NODE_ID_SIZE)
+        self.node_id = NodeID(randbytes(NODE_ID_SIZE))
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.settimeout(timeout)
@@ -70,7 +70,7 @@ class DHTConnection:
     def send_krpc_query(
         self, query_type: str, query_args: bencode.BencodableDict
     ) -> bencode.BencodableDict:
-        query_args["id"] = self.node_id
+        query_args["id"] = self.node_id.node_id
 
         retries = 0
         while retries <= self.max_retries:
