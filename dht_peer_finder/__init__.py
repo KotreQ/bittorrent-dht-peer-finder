@@ -56,7 +56,11 @@ class NodeInfo:
 
 class DHTConnection:
     def __init__(
-        self, dht_addr: tuple[str, int], *, max_retries: int = 10, timeout: float = 1
+        self,
+        bootstrap_addr: tuple[str, int],
+        *,
+        max_retries: int = 10,
+        timeout: float = 1,
     ):
         self.node_id = NodeID(randbytes(NODE_ID_SIZE))
 
@@ -65,7 +69,7 @@ class DHTConnection:
 
         self.max_retries = max_retries
 
-        self.dht_addr = socket.gethostbyname(dht_addr[0]), dht_addr[1]
+        self.bootstrap_addr = socket.gethostbyname(bootstrap_addr[0]), bootstrap_addr[1]
 
     def send_krpc_query(
         self, query_type: str, query_args: bencode.BencodableDict
@@ -86,7 +90,7 @@ class DHTConnection:
                     }
                 )
 
-                self.sock.sendto(request_data, self.dht_addr)
+                self.sock.sendto(request_data, self.bootstrap_addr)
 
                 while True:
                     resp_data = self.sock.recv(4096)
