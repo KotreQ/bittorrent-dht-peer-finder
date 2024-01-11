@@ -39,6 +39,9 @@ class IpAddrPortInfo:
             int.from_bytes(compact[4:], "big"),
         )
 
+    def to_tuple(self):
+        return ".".join(map(str, self.ip)), self.port
+
 
 class NodeInfo:
     def __init__(self, node_id: NodeID, ip_addr_port: IpAddrPortInfo):
