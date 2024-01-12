@@ -111,14 +111,36 @@ class DHTConnection:
 
         self.max_retries = max_retries
 
-        self.bootstrap_addr = socket.gethostbyname(bootstrap_addr[0]), bootstrap_addr[1]
+        self.routing_table = RoutingTable(self.node_id)
+
+        bootstrap_addr_info = IpAddrPortInfo(
+            socket.gethostbyname(bootstrap_addr[0]), bootstrap_addr[1]
+        )
+        bootstrap_node_id = self.get_addr_id(bootstrap_addr_info)
+        bootstrap_node = NodeInfo(bootstrap_node_id, bootstrap_addr_info)
+
+        self.routing_table.add_node(bootstrap_node)
 
     def send_krpc_query(
         self,
         query_type: str,
         query_args: bencode.BencodableDict,
-        target: IpAddrPortInfo,
+        target: IpAddrPortInfo | NodeID,
     ) -> bencode.BencodableDict:
+        if isinstance(target, NodeID):
+            for node_info in self.routing_table.iter_closest(target):
+                try:
+                    response = self.send_krpc_query(
+                        query_type, query_args, node_info.ip_addr_port
+                    )
+                    return response
+                except ConnectionError:
+                    pass
+
+            raise ConnectionError(
+                "No request could be made using client's routing table"
+            )
+
         target_addr = target.to_tuple()
 
         query_args["id"] = self.node_id.node_id
@@ -168,7 +190,7 @@ class DHTConnection:
 
     def ping(self) -> bool:
         try:
-            self.send_krpc_query("ping", {}, IpAddrPortInfo(*self.bootstrap_addr))
+            self.send_krpc_query("ping", {}, NodeID(randbytes(NODE_ID_SIZE)))
         except ConnectionError:
             return False
         return True
