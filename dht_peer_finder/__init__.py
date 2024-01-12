@@ -164,7 +164,9 @@ class BitTorrentDHTConnection:
                 self.sock.sendto(request_data, target_addr)
 
                 while True:
-                    resp_data = self.sock.recv(4096)
+                    resp_data, resp_addr = self.sock.recvfrom(4096)
+                    if target_addr != resp_addr:
+                        continue
                     try:
                         resp_data = bencode.decode(resp_data)
                         if not isinstance(resp_data, dict):
