@@ -96,7 +96,7 @@ class RoutingTable:
                 yield node_info
 
 
-class DHTConnection:
+class BitTorrentDHTConnection:
     def __init__(
         self,
         bootstrap_addr: tuple[str, int],
