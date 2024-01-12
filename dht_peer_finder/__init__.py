@@ -8,6 +8,8 @@ from .regex import IP_REGEX
 
 NODE_ID_SIZE = 20
 K_BUCKET_SIZE = 20
+IP_ADDR_PORT_SIZE = 6
+NODE_INFO_SIZE = NODE_ID_SIZE + IP_ADDR_PORT_SIZE
 
 
 def bytes_xor(bytesA: bytes, bytesB: bytes) -> bytes:
@@ -35,7 +37,7 @@ class IpAddrPortInfo:
 
     @classmethod
     def from_compact(cls, compact: bytes):
-        assert len(compact) == 6
+        assert len(compact) == IP_ADDR_PORT_SIZE
         return cls(
             socket.inet_ntop(socket.AF_INET, compact[:4]),
             int.from_bytes(compact[4:], "big"),
@@ -52,7 +54,7 @@ class NodeInfo:
 
     @classmethod
     def from_compact(cls, compact: bytes):
-        assert len(compact) == 26
+        assert len(compact) == NODE_INFO_SIZE
         return cls(
             NodeID(compact[:NODE_ID_SIZE]),
             IpAddrPortInfo.from_compact(compact[NODE_ID_SIZE:]),
