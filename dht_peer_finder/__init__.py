@@ -104,6 +104,12 @@ class RoutingTable:
                 key=lambda node_info: node_info.node_id.distance(node_id),
             ):
                 yield node_info
+    
+    def __contains__(self, node_info: NodeInfo):
+        k_bucket_index = self._classify_node_id(node_info.node_id)
+        k_bucket = self.k_buckets[k_bucket_index]
+
+        return node_info in k_bucket
 
 
 class BitTorrentDHTConnection:
