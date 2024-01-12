@@ -114,8 +114,13 @@ class DHTConnection:
         self.bootstrap_addr = socket.gethostbyname(bootstrap_addr[0]), bootstrap_addr[1]
 
     def send_krpc_query(
-        self, query_type: str, query_args: bencode.BencodableDict
+        self,
+        query_type: str,
+        query_args: bencode.BencodableDict,
+        target: IpAddrPortInfo,
     ) -> bencode.BencodableDict:
+        target_addr = target.to_tuple()
+
         query_args["id"] = self.node_id.node_id
 
         retries = 0
@@ -132,7 +137,7 @@ class DHTConnection:
                     }
                 )
 
-                self.sock.sendto(request_data, self.bootstrap_addr)
+                self.sock.sendto(request_data, target_addr)
 
                 while True:
                     resp_data = self.sock.recv(4096)
@@ -163,7 +168,7 @@ class DHTConnection:
 
     def ping(self) -> bool:
         try:
-            self.send_krpc_query("ping", {})
+            self.send_krpc_query("ping", {}, IpAddrPortInfo(*self.bootstrap_addr))
         except ConnectionError:
             return False
         return True
