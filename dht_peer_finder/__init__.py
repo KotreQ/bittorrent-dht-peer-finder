@@ -161,8 +161,9 @@ class DHTConnection:
 
         raise ConnectionError(f"Max retries exceeded: {self.max_retries}")
 
-    def ping(self) -> bytes:
-        resp = self.send_krpc_query("ping", {})
-        if b"id" not in resp or not isinstance(resp[b"id"], bytes):
-            raise TypeError("Node id not found in ping response")
-        return resp[b"id"]
+    def ping(self) -> bool:
+        try:
+            self.send_krpc_query("ping", {})
+        except ConnectionError:
+            return False
+        return True
