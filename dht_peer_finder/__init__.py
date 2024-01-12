@@ -1,11 +1,13 @@
 import socket
+from itertools import chain
 from random import randbytes
-from typing import Self
+from typing import Iterable, Self
 
 from . import bencode
 from .regex import IP_REGEX
 
 NODE_ID_SIZE = 20
+K_BUCKET_SIZE = 20
 
 
 def bytes_xor(bytesA: bytes, bytesB: bytes) -> bytes:
@@ -55,6 +57,43 @@ class NodeInfo:
             NodeID(compact[:NODE_ID_SIZE]),
             IpAddrPortInfo.from_compact(compact[NODE_ID_SIZE:]),
         )
+
+
+class RoutingTable:
+    def __init__(self, client_node_id: NodeID):
+        self.client_node_id = client_node_id
+        self.k_buckets: list[list[NodeInfo]] = [[] for _ in range(NODE_ID_SIZE * 8)]
+
+    def _classify_node_id(self, node_id: NodeID) -> int:
+        # smaller index means closer to client node
+        distance = self.client_node_id.distance(node_id)
+        k_bucket_distance = 0
+        while distance != 0:
+            k_bucket_distance += 1
+            distance >>= 1
+        return k_bucket_distance
+
+    def add_node(self, node_info: NodeInfo):
+        k_bucket_index = self._classify_node_id(node_info.node_id)
+        k_bucket = self.k_buckets[k_bucket_index]
+
+        if node_info not in k_bucket:
+            if len(k_bucket) >= K_BUCKET_SIZE:
+                k_bucket.pop(0)
+            k_bucket.append(node_info)
+
+    def iter_closest(self, node_id: NodeID) -> Iterable[NodeInfo]:
+        target_k_bucket_index = self._classify_node_id(node_id)
+
+        for k_bucket_index in chain(
+            range(target_k_bucket_index, -1, -1),
+            range(target_k_bucket_index + 1, len(self.k_buckets)),
+        ):
+            for node_info in sorted(
+                self.k_buckets[k_bucket_index],
+                key=lambda node_info: node_info.node_id.distance(node_id),
+            ):
+                yield node_info
 
 
 class DHTConnection:
