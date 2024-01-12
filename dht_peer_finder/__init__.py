@@ -60,6 +60,14 @@ class NodeInfo:
             IpAddrPortInfo.from_compact(compact[NODE_ID_SIZE:]),
         )
 
+    @classmethod
+    def from_compact_list(cls, compact_list: bytes):
+        assert len(compact_list) % NODE_INFO_SIZE == 0
+        return [
+            cls.from_compact(compact_list[i : i + NODE_INFO_SIZE])
+            for i in range(0, len(compact_list), NODE_INFO_SIZE)
+        ]
+
 
 class RoutingTable:
     def __init__(self, client_node_id: NodeID):
