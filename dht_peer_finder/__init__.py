@@ -67,11 +67,11 @@ class RoutingTable:
     def _classify_node_id(self, node_id: NodeID) -> int:
         # smaller index means closer to client node
         distance = self.client_node_id.distance(node_id)
-        k_bucket_distance = 0
+        k_bucket_distance = -1
         while distance != 0:
             k_bucket_distance += 1
             distance >>= 1
-        return k_bucket_distance
+        return max(0, k_bucket_distance)
 
     def add_node(self, node_info: NodeInfo):
         k_bucket_index = self._classify_node_id(node_info.node_id)
