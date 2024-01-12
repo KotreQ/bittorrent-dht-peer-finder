@@ -172,3 +172,9 @@ class DHTConnection:
         except ConnectionError:
             return False
         return True
+
+    def get_addr_id(self, addr: IpAddrPortInfo) -> NodeID:
+        resp = self.send_krpc_query("ping", {}, addr)
+        if b"id" not in resp or not isinstance(resp[b"id"], bytes):
+            raise TypeError("Node id not found in ping response")
+        return NodeID(resp[b"id"])
