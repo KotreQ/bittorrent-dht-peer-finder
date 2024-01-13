@@ -141,8 +141,8 @@ class BitTorrentDHTConnection:
         self,
         bootstrap_addr: tuple[str, int],
         *,
-        max_retries: int = 10,
-        timeout: float = 1,
+        max_retries: int = 3,
+        timeout: float = 0.5,
     ):
         self.node_id = NodeID(randbytes(NODE_ID_SIZE))
 
