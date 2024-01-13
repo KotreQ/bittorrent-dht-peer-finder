@@ -1,5 +1,5 @@
 import socket
-from itertools import chain
+from itertools import chain, islice
 from random import randbytes
 from typing import Iterable, Self
 
@@ -104,7 +104,10 @@ class RoutingTable:
                 key=lambda node_info: node_info.node_id.distance(node_id),
             ):
                 yield node_info
-    
+
+    def get_closest(self, node_id: NodeID, max_count: int = 1) -> list[NodeInfo]:
+        return list(islice(self.iter_closest(node_id), max_count))
+
     def __contains__(self, node_info: NodeInfo):
         k_bucket_index = self._classify_node_id(node_info.node_id)
         k_bucket = self.k_buckets[k_bucket_index]
