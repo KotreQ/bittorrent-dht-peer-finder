@@ -147,18 +147,7 @@ class BitTorrentDHTConnection:
         target: IpAddrPortInfo | NodeID,
     ) -> bencode.BencodableDict:
         if isinstance(target, NodeID):
-            for node_info in self.routing_table.iter_closest(target):
-                try:
-                    response = self.send_krpc_query(
-                        query_type, query_args, node_info.ip_addr_port
-                    )
-                    return response
-                except ConnectionError:
-                    pass
-
-            raise ConnectionError(
-                "No request could be made using client's routing table"
-            )
+            target = self.routing_table.get_closest(target)[0].ip_addr_port
 
         target_addr = target.to_tuple()
 
