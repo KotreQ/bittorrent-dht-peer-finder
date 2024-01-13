@@ -233,3 +233,48 @@ class BitTorrentDHTConnection:
         if b"id" not in resp or not isinstance(resp[b"id"], bytes):
             raise TypeError("Node id not found in ping response")
         return NodeID(resp[b"id"])
+
+    def get_torrent_peers(self, torrent_hash: NodeID) -> Iterable[IpAddrPortInfo]:
+        nodes_to_check: list[NodeInfo] = []
+        for node in self.routing_table.iter_closest(torrent_hash):
+            nodes_to_check.append(node)
+
+            while nodes_to_check:
+                node = nodes_to_check.pop()
+
+                try:
+                    resp = self.send_krpc_query(
+                        "get_peers",
+                        {"info_hash": torrent_hash.node_id},
+                        node.ip_addr_port,
+                    )
+                    # request successful so add to routing table
+                    self.routing_table.add_node(node)
+                except ConnectionError:
+                    continue
+
+                if b"values" in resp and isinstance(resp[b"values"], list):
+                    for value in resp[b"values"]:
+                        if not isinstance(value, bytes):
+                            raise TypeError(
+                                f"Value: {value!r} is of invalid type: {type(value).__name__}"
+                            )
+
+                        value = IpAddrPortInfo.from_compact(value)
+                        yield value
+
+                if b"nodes" not in resp or not isinstance(resp[b"nodes"], bytes):
+                    continue
+
+                encoded_node_infos = resp[b"nodes"]
+                node_infos = NodeInfo.from_compact_list(encoded_node_infos)
+                node_infos.sort(
+                    key=lambda node_info: node_info.node_id.distance(torrent_hash),
+                    reverse=True,
+                )
+
+                nodes_to_check.extend(
+                    filter(
+                        lambda node_info: node_info not in nodes_to_check, node_infos
+                    )
+                )
