@@ -11,6 +11,8 @@ K_BUCKET_SIZE = 20
 IP_ADDR_PORT_SIZE = 6
 NODE_INFO_SIZE = NODE_ID_SIZE + IP_ADDR_PORT_SIZE
 
+RECEIVE_BUFFER_SIZE = 65536
+
 
 def bytes_xor(bytesA: bytes, bytesB: bytes) -> bytes:
     assert len(bytesA) == len(bytesB)
@@ -191,7 +193,7 @@ class BitTorrentDHTConnection:
                 self.sock.sendto(request_data, target_addr)
 
                 while True:
-                    resp_data, resp_addr = self.sock.recvfrom(4096)
+                    resp_data, resp_addr = self.sock.recvfrom(RECEIVE_BUFFER_SIZE)
                     if target_addr != resp_addr:
                         continue
                     try:
