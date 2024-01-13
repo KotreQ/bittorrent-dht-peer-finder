@@ -26,6 +26,13 @@ class NodeID:
         byte_distance = bytes_xor(self.node_id, other.node_id)
         return int.from_bytes(byte_distance, "big")
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            raise TypeError(
+                f"Object: {other!r} is of invalid type: {type(other).__name__}"
+            )
+        return self.node_id == other.node_id
+
 
 class IpAddrPortInfo:
     def __init__(self, ip: str, port: int):
@@ -45,6 +52,13 @@ class IpAddrPortInfo:
 
     def to_tuple(self):
         return ".".join(map(str, self.ip)), self.port
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            raise TypeError(
+                f"Object: {other!r} is of invalid type: {type(other).__name__}"
+            )
+        return self.ip == other.ip and self.port == other.port
 
 
 class NodeInfo:
@@ -67,6 +81,13 @@ class NodeInfo:
             cls.from_compact(compact_list[i : i + NODE_INFO_SIZE])
             for i in range(0, len(compact_list), NODE_INFO_SIZE)
         ]
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            raise TypeError(
+                f"Object: {other!r} is of invalid type: {type(other).__name__}"
+            )
+        return self.node_id == other.node_id and self.ip_addr_port == other.ip_addr_port
 
 
 class RoutingTable:
