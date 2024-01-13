@@ -39,7 +39,8 @@ def decode(data: bytes) -> Bencodable:
         result: list[Bencodable] = []
         index = 1
         while data[index] != ord("e"):
-            item, index = parse_item(data[index:])
+            item, index_offset = parse_item(data[index:])
+            index += index_offset
             result.append(item)
         return result, index + 1
 
