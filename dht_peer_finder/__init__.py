@@ -262,19 +262,19 @@ class BitTorrentDHTConnection:
 
                         value = IpAddrPortInfo.from_compact(value)
                         yield value
-
-                if b"nodes" not in resp or not isinstance(resp[b"nodes"], bytes):
                     continue
 
-                encoded_node_infos = resp[b"nodes"]
-                node_infos = NodeInfo.from_compact_list(encoded_node_infos)
-                node_infos.sort(
-                    key=lambda node_info: node_info.node_id.distance(torrent_hash),
-                    reverse=True,
-                )
-
-                nodes_to_check.extend(
-                    filter(
-                        lambda node_info: node_info not in nodes_to_check, node_infos
+                elif b"nodes" in resp and isinstance(resp[b"nodes"], bytes):
+                    encoded_node_infos = resp[b"nodes"]
+                    node_infos = NodeInfo.from_compact_list(encoded_node_infos)
+                    node_infos.sort(
+                        key=lambda node_info: node_info.node_id.distance(torrent_hash),
+                        reverse=True,
                     )
-                )
+
+                    nodes_to_check.extend(
+                        filter(
+                            lambda node_info: node_info not in nodes_to_check,
+                            node_infos,
+                        )
+                    )
