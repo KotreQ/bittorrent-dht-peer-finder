@@ -2,6 +2,7 @@ import socket
 from itertools import chain, islice
 from typing import Iterable, Self
 
+from .dht_exceptions import *
 from .regex import IP_REGEX
 from .utils.binary import bytes_xor
 
@@ -82,6 +83,59 @@ class NodeInfo:
                 f"Object: {other!r} is of invalid type: {type(other).__name__}"
             )
         return self.node_id == other.node_id and self.ip_addr_port == other.ip_addr_port
+
+
+class KBucket:
+    def __init__(self, client_node_id: NodeID, common_bits: int):
+        self.client_node_id = client_node_id
+        self.common_bits = common_bits
+        self.nodes: list[NodeInfo] = []
+
+    def _get_common_bits(self, node_id: NodeID):
+        distance = self.client_node_id.distance(node_id)
+        distance_bits = distance.bit_length()
+        common_bits = NODE_ID_SIZE * 8 - distance_bits
+        return common_bits
+
+    def add_node(self, node: NodeInfo, accept_closer: bool = False):
+        common_bits = self._get_common_bits(node.node_id)
+
+        if common_bits < self.common_bits:
+            raise TooHighKBucketDistance("Not enough common bits in node id")
+
+        if common_bits > self.common_bits and not accept_closer:
+            raise TooLowKBucketDistance("Too much common bits in node id")
+
+        if len(self.nodes) >= K_BUCKET_SIZE:
+            raise KBucketSpaceError("Not space left in K-Bucket")
+
+        if node in self.nodes:
+            return
+
+        self.nodes.append(node)
+
+    def pop_closer(self) -> list[NodeInfo]:
+        closer_nodes: set[NodeInfo] = set()
+
+        for node in self.nodes:
+            common_bits = self._get_common_bits(node.node_id)
+            if common_bits > self.common_bits:
+                closer_nodes.add(node)
+
+        popped_nodes: list[NodeInfo] = self.pop_nodes(closer_nodes)
+
+        return popped_nodes
+
+    def pop_nodes(self, nodes: Iterable[NodeInfo]) -> list[NodeInfo]:
+        nodes = set(nodes)
+        pop_indexes = [i for i, node in enumerate(self.nodes) if node in nodes]
+        pop_indexes.sort(reverse=True)
+
+        popped_nodes: list[NodeInfo] = []
+        for pop_index in pop_indexes:
+            popped_nodes.append(self.nodes.pop(pop_index))
+
+        return popped_nodes
 
 
 class RoutingTable:
