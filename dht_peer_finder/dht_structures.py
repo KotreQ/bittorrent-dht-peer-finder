@@ -21,6 +21,12 @@ class NodeID:
         byte_distance = bytes_xor(self.node_id, other.node_id)
         return int.from_bytes(byte_distance, "big")
 
+    def common_bits(self, other: Self):
+        distance = self.distance(other)
+        distance_bits = distance.bit_length()
+        common_bits = NODE_ID_SIZE * 8 - distance_bits
+        return common_bits
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
             raise TypeError(
@@ -91,14 +97,8 @@ class KBucket:
         self.common_bits = common_bits
         self.nodes: list[NodeInfo] = []
 
-    def _get_common_bits(self, node_id: NodeID):
-        distance = self.client_node_id.distance(node_id)
-        distance_bits = distance.bit_length()
-        common_bits = NODE_ID_SIZE * 8 - distance_bits
-        return common_bits
-
     def add_node(self, node: NodeInfo, accept_closer: bool = False):
-        common_bits = self._get_common_bits(node.node_id)
+        common_bits = self.client_node_id.common_bits(node.node_id)
 
         if common_bits < self.common_bits:
             raise TooHighKBucketDistance("Not enough common bits in node id")
@@ -118,7 +118,7 @@ class KBucket:
         closer_nodes: set[NodeInfo] = set()
 
         for node in self.nodes:
-            common_bits = self._get_common_bits(node.node_id)
+            common_bits = self.client_node_id.common_bits(node.node_id)
             if common_bits > self.common_bits:
                 closer_nodes.add(node)
 
