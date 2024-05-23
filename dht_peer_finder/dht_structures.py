@@ -184,9 +184,3 @@ class RoutingTable:
 
     def get_closest(self, node_id: NodeID, max_count: int = 1) -> list[NodeInfo]:
         return list(islice(self.iter_closest(node_id), max_count))
-
-    def __contains__(self, node_info: NodeInfo):
-        k_bucket_index = self._classify_node_id(node_info.node_id)
-        k_bucket = self.k_buckets[k_bucket_index]
-
-        return node_info in k_bucket
