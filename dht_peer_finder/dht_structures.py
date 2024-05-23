@@ -97,7 +97,7 @@ class KBucket:
         self.common_bits = common_bits
         self.nodes: list[NodeInfo] = []
 
-    def add_node(self, node: NodeInfo, accept_closer: bool = False):
+    def add_node(self, node: NodeInfo, *, accept_closer: bool = False):
         common_bits = self.client_node_id.common_bits(node.node_id)
 
         if common_bits < self.common_bits:
