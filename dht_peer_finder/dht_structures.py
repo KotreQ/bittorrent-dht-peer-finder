@@ -150,34 +150,45 @@ class KBucket:
 class RoutingTable:
     def __init__(self, client_node_id: NodeID):
         self.client_node_id = client_node_id
-        self.k_buckets: list[list[NodeInfo]] = [[] for _ in range(NODE_ID_SIZE * 8)]
+        self.k_buckets: list[KBucket] = [KBucket(self.client_node_id, 0)]
 
-    def _classify_node_id(self, node_id: NodeID) -> int:
-        distance = self.client_node_id.distance(node_id)
-        k_bucket_distance = -1
-        while distance != 0:
-            k_bucket_distance += 1
-            distance >>= 1
-        return max(0, k_bucket_distance)
+    def _get_bucket_index(self, node_id: NodeID) -> int:
+        common_bits = self.client_node_id.common_bits(node_id)
+        return min(common_bits, len(self.k_buckets) - 1)
+
+    def _add_bucket(self):
+        if len(self.k_buckets) >= NODE_ID_SIZE * 8:
+            raise IndexError("Max number of buckets reached")
+
+        last_k_bucket = self.k_buckets[-1]
+        new_k_bucket = KBucket(self.client_node_id, len(self.k_buckets))
+
+        for node in last_k_bucket.pop_closer():
+            new_k_bucket.add_node(node, accept_closer=True)
+
+        self.k_buckets.append(new_k_bucket)
 
     def add_node(self, node_info: NodeInfo):
-        k_bucket_index = self._classify_node_id(node_info.node_id)
+        k_bucket_index = self._get_bucket_index(node_info.node_id)
+        is_last_bucket = k_bucket_index == len(self.k_buckets) - 1
+
         k_bucket = self.k_buckets[k_bucket_index]
 
-        if node_info not in k_bucket:
-            if len(k_bucket) >= K_BUCKET_SIZE:
-                k_bucket.pop(0)
-            k_bucket.append(node_info)
+        try:
+            k_bucket.add_node(node_info, accept_closer=is_last_bucket)
+        except KBucketSpaceError:
+            if is_last_bucket:
+                self._add_bucket()
 
     def iter_closest(self, node_id: NodeID) -> Iterable[NodeInfo]:
-        target_k_bucket_index = self._classify_node_id(node_id)
+        target_k_bucket_index = self._get_bucket_index(node_id)
 
         for k_bucket_index in chain(
-            range(target_k_bucket_index, -1, -1),
-            range(target_k_bucket_index + 1, len(self.k_buckets)),
+            range(target_k_bucket_index, len(self.k_buckets)),
+            range(target_k_bucket_index - 1, -1, -1),
         ):
             for node_info in sorted(
-                self.k_buckets[k_bucket_index],
+                self.k_buckets[k_bucket_index].nodes,
                 key=lambda node_info: node_info.node_id.distance(node_id),
             ):
                 yield node_info
