@@ -34,6 +34,9 @@ class NodeID:
             )
         return self.node_id == other.node_id
 
+    def __hash__(self) -> int:
+        return hash(self.node_id)
+
 
 class IpAddrPort:
     def __init__(self, ip: str, port: int):
@@ -60,6 +63,9 @@ class IpAddrPort:
                 f"Object: {other!r} is of invalid type: {type(other).__name__}"
             )
         return self.ip == other.ip and self.port == other.port
+
+    def __hash__(self) -> int:
+        return hash(self.to_tuple())
 
 
 class NodeInfo:
@@ -89,6 +95,9 @@ class NodeInfo:
                 f"Object: {other!r} is of invalid type: {type(other).__name__}"
             )
         return self.node_id == other.node_id and self.ip_addr_port == other.ip_addr_port
+
+    def __hash__(self) -> int:
+        return hash((self.node_id, self.ip_addr_port))
 
 
 class KBucket:
