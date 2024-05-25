@@ -109,17 +109,17 @@ class KBucket:
     def add_node(self, node: NodeInfo, *, accept_closer: bool = False):
         common_bits = self.client_node_id.common_bits(node.node_id)
 
+        if node in self.nodes:
+            return
+
+        if len(self.nodes) >= K_BUCKET_SIZE:
+            raise KBucketSpaceError("Not space left in K-Bucket")
+
         if common_bits < self.common_bits:
             raise TooHighKBucketDistance("Not enough common bits in node id")
 
         if common_bits > self.common_bits and not accept_closer:
             raise TooLowKBucketDistance("Too much common bits in node id")
-
-        if len(self.nodes) >= K_BUCKET_SIZE:
-            raise KBucketSpaceError("Not space left in K-Bucket")
-
-        if node in self.nodes:
-            return
 
         self.nodes.append(node)
 
