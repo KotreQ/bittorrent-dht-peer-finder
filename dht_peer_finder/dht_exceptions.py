@@ -6,13 +6,13 @@ class KBucketSpaceError(KBucketError):
     pass
 
 
-class IncorrectKBucketDistance(KBucketError):
+class IncorrectKBucketDistanceError(KBucketError):
     pass
 
 
-class TooHighKBucketDistance(IncorrectKBucketDistance):
+class TooHighKBucketDistanceError(IncorrectKBucketDistanceError):
     pass
 
 
-class TooLowKBucketDistance(IncorrectKBucketDistance):
+class TooLowKBucketDistanceError(IncorrectKBucketDistanceError):
     pass

@@ -116,10 +116,10 @@ class KBucket:
             raise KBucketSpaceError("Not space left in K-Bucket")
 
         if common_bits < self.common_bits:
-            raise TooHighKBucketDistance("Not enough common bits in node id")
+            raise TooHighKBucketDistanceError("Not enough common bits in node id")
 
         if common_bits > self.common_bits and not accept_closer:
-            raise TooLowKBucketDistance("Too much common bits in node id")
+            raise TooLowKBucketDistanceError("Too much common bits in node id")
 
         self.nodes.append(node)
 
