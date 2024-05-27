@@ -1,3 +1,5 @@
+from .exceptions import BencodeDecodingError
+
 type Bencodable = str | int | bytes | list[Bencodable] | BencodableDict
 type BencodableDict = dict[str | bytes, Bencodable]
 
@@ -71,7 +73,7 @@ def decode(data: bytes) -> Bencodable:
             return parse_bytes(data)
 
         else:
-            raise ValueError(f"Invalid bencoded data: {data!r}")
+            raise BencodeDecodingError(f"Invalid bencoded data: {data!r}")
 
     result, _ = parse_item(data)
     return result
