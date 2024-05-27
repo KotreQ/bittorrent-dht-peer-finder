@@ -16,3 +16,15 @@ class TooHighKBucketDistanceError(IncorrectKBucketDistanceError):
 
 class TooLowKBucketDistanceError(IncorrectKBucketDistanceError):
     pass
+
+
+class KRPCPacketError(Exception):
+    pass
+
+
+class InvalidKRPCPacket(KRPCPacketError):
+    pass
+
+
+class InvalidKRPCEncodedData(KRPCPacketError):
+    pass
