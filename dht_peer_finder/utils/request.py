@@ -1,4 +1,5 @@
 import threading
+import time
 from collections import deque
 from typing import Any
 
@@ -23,6 +24,27 @@ class Request:
             return None
 
         return self.success, self.result
+
+
+class TimedRequest(Request):
+    def __init__(self, input_data: Any, timeout: float):
+        super().__init__(input_data)
+        self.timeout = timeout
+        self.start_time = time.time()
+
+    def is_timeouted(self):
+        return self.start_time + self.timeout < time.time()
+
+    def should_process(self):
+        if not super().should_process():
+            return False
+
+        if self.is_timeouted():
+            self.resolve(None, False)
+            return False
+
+        return True
+
 
 class RequestHandler:
     def __init__(self):
