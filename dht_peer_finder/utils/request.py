@@ -7,12 +7,22 @@ class Request:
     def __init__(self, input_data: Any):
         self.input_data = input_data
         self.is_resolved = False
-        self.output_data = None
+        self.success = None
+        self.result = None
 
-    def resolve(self, output_data: Any):
-        self.output_data = output_data
+    def resolve(self, result: Any, success: bool = True):
+        self.result = result
+        self.success = success
         self.is_resolved = True
 
+    def should_process(self):
+        return not self.is_resolved
+
+    def get_result(self):
+        if self.should_process():  # if not yet processed
+            return None
+
+        return self.success, self.result
 
 class RequestHandler:
     def __init__(self):
@@ -27,7 +37,7 @@ class RequestHandler:
         with self._lock:
             while self._queue:
                 request = self._queue.popleft()
-                if request.is_resolved:
+                if not request.should_process():
                     continue
                 self._queue.append(request)
                 return request
