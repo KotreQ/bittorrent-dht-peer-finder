@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "Run Test File",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "test.py",
             "console": "integratedTerminal",
