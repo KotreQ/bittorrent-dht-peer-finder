@@ -140,7 +140,7 @@ class KRPCQueryPacket(KRPCPacket):
 
     def __init__(
         self,
-        transaction_id: bytes,
+        transaction_id: bytes | None,
         query_type: KRPCQueryType,
         arguments: bencode.BencodableDict,
     ):
@@ -152,7 +152,7 @@ class KRPCQueryPacket(KRPCPacket):
 class KRPCResponsePacket(KRPCPacket):
     packet_type = KRPCPacketType.RESPONSE
 
-    def __init__(self, transaction_id: bytes, response: bencode.BencodableDict):
+    def __init__(self, transaction_id: bytes | None, response: bencode.BencodableDict):
         super().__init__(transaction_id)
         self.response = response
 
@@ -160,6 +160,6 @@ class KRPCResponsePacket(KRPCPacket):
 class KRPCErrorPacket(KRPCPacket):
     packet_type = KRPCPacketType.ERROR
 
-    def __init__(self, transaction_id: bytes, error: tuple[int, str | bytes]):
+    def __init__(self, transaction_id: bytes | None, error: tuple[int, str | bytes]):
         super().__init__(transaction_id)
         self.error = error
