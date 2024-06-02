@@ -65,3 +65,7 @@ class RequestHandler:
                 return request
 
             return None
+
+    def to_list(self) -> list[Request]:
+        with self._lock:
+            return list(filter(lambda request: request.should_process(), self._queue))
