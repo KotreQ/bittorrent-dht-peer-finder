@@ -25,6 +25,10 @@ class Request:
 
         return self.success, self.result
 
+    def wait(self):
+        while self.should_process():
+            time.sleep(0.1)
+
 
 class TimedRequest(Request):
     def __init__(self, input_data: Any, timeout: float):
