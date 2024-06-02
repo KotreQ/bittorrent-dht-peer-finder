@@ -27,6 +27,8 @@ class KRPCQueryType(Enum):
 
 
 class KRPCPacket:
+    packet_type = None
+
     def __init__(self, transaction_id: bytes | None):
         self.transaction_id = transaction_id
         if self.transaction_id is None:
@@ -112,27 +114,30 @@ class KRPCPacket:
         return self.transaction_id == other.transaction_id
 
     def to_bencoded(self) -> bytes:
+        if self.packet_type is None:
+            raise InvalidKRPCPacket("No specific KRPC packet type present")
+
         data = {}
 
         data["t"] = self.transaction_id
 
-        if isinstance(self, KRPCQueryPacket):
-            data["y"] = KRPCPacketType.QUERY.value
-            data["q"] = self.query_type.value
-            data["a"] = self.arguments
-        elif isinstance(self, KRPCResponsePacket):
-            data["y"] = KRPCPacketType.RESPONSE.value
-            data["r"] = self.response
-        elif isinstance(self, KRPCErrorPacket):
-            data["y"] = KRPCPacketType.ERROR.value
-            data["e"] = list(self.error)
-        else:
-            raise InvalidKRPCPacket("No specific KRPC packet type present")
+        data["y"] = self.packet_type.value
+
+        match self.packet_type:
+            case KRPCPacketType.QUERY:
+                data["q"] = self.query_type.value
+                data["a"] = self.arguments
+            case KRPCPacketType.RESPONSE:
+                data["r"] = self.response
+            case KRPCPacketType.ERROR:
+                data["e"] = list(self.error)
 
         return bencode.encode(data)
 
 
 class KRPCQueryPacket(KRPCPacket):
+    packet_type = KRPCPacketType.QUERY
+
     def __init__(
         self,
         transaction_id: bytes,
@@ -145,12 +150,16 @@ class KRPCQueryPacket(KRPCPacket):
 
 
 class KRPCResponsePacket(KRPCPacket):
+    packet_type = KRPCPacketType.RESPONSE
+
     def __init__(self, transaction_id: bytes, response: bencode.BencodableDict):
         super().__init__(transaction_id)
         self.response = response
 
 
 class KRPCErrorPacket(KRPCPacket):
+    packet_type = KRPCPacketType.ERROR
+
     def __init__(self, transaction_id: bytes, error: tuple[int, str | bytes]):
         super().__init__(transaction_id)
         self.error = error
