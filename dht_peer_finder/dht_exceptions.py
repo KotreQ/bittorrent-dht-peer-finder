@@ -28,3 +28,7 @@ class InvalidKRPCPacket(KRPCPacketError):
 
 class InvalidKRPCEncodedData(KRPCPacketError):
     pass
+
+
+class KRPCRequestError(Exception):
+    pass
