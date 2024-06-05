@@ -180,6 +180,10 @@ class RoutingTable:
             if is_last_bucket:
                 self._add_bucket()
 
+    def remove_nodes(self, node_ids: set[NodeID]):
+        for k_bucket in self.k_buckets:
+            k_bucket.pop_nodes(node_ids)
+
     def iter_closest(self, node_id: NodeID) -> Iterable[NodeInfo]:
         target_k_bucket_index = self._get_bucket_index(node_id)
 
