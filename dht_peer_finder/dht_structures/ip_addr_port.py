@@ -1,6 +1,6 @@
 import socket
 
-from ..regex import IP_REGEX
+from ..utils.regex import IP_REGEX
 
 IP_ADDR_PORT_SIZE = 6
 
