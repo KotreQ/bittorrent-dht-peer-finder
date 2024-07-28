@@ -4,6 +4,7 @@ from typing import Self
 
 from . import bencode
 from .dht_exceptions import *
+from .dht_structures import IP_ADDR_PORT_SIZE, NODE_ID_SIZE, NODE_INFO_SIZE
 
 
 class KRPCPacketType(Enum):
@@ -12,154 +13,306 @@ class KRPCPacketType(Enum):
     ERROR = b"e"
 
 
-REQUIRED_KRPC_PACKET_FIELDS = {
-    KRPCPacketType.QUERY: [b"q", b"a"],
-    KRPCPacketType.RESPONSE: [b"r"],
-    KRPCPacketType.ERROR: [b"e"],
-}
-
-
-class KRPCQueryType(Enum):
+class KRPCMethodType(Enum):
     PING = b"ping"
     FIND_NODE = b"find_node"
     GET_PEERS = b"get_peers"
     ANNOUNCE_PEER = b"announce_peer"
 
 
+# GENERIC PACKET TYPE
 class KRPCPacket:
-    packet_type = None
+    PACKET_TYPE = None
+    METHOD_TYPE = None
 
     def __init__(self, transaction_id: bytes | None):
+        if transaction_id is None:
+            transaction_id = randbytes(2)
+
         self.transaction_id = transaction_id
-        if self.transaction_id is None:
-            self.transaction_id = randbytes(2)
-        elif len(self.transaction_id) != 2:
-            raise ValueError(f"Invalid transaction id: {self.transaction_id!r}")
 
     @classmethod
-    def from_bencoded(cls, bencoded_data: bytes):
+    def from_dict(cls, data: bencode.BencodableDict):
         try:
-            data = bencode.decode(bencoded_data)
-        except bencode.BencodeDecodingError:
-            raise InvalidKRPCEncodedData(
-                "Cannot construct KRPC packet from specified data"
-            )
+            packet_type = KRPCPacketType(data.get(b"y"))
+        except ValueError:
+            raise InvalidKRPCPacket(f"{data!r} has an invalid 'y' key")
 
-        if not isinstance(data, dict):
-            raise InvalidKRPCEncodedData("Packet is of invalid data type")
-
-        if b"t" not in data:
-            raise InvalidKRPCEncodedData("Packet doesn't contain transaction id")
+        if b"t" not in data or not isinstance(data[b"t"], bytes):
+            raise InvalidKRPCPacket(f"{data!r} has an invalid 't' key")
 
         transaction_id = data[b"t"]
 
-        if not isinstance(transaction_id, bytes) or len(transaction_id) != 2:
-            raise InvalidKRPCEncodedData("Packet contains invalid transaction id")
-
-        if b"y" not in data:
-            raise InvalidKRPCEncodedData("Packet doesn't contain 'type' field")
-
-        try:
-            packet_type = KRPCPacketType(data[b"y"])
-        except ValueError:
-            raise InvalidKRPCEncodedData("Packet contains invalid 'type' field")
-
-        for required_field in REQUIRED_KRPC_PACKET_FIELDS[packet_type]:
-            if required_field not in data:
-                raise InvalidKRPCEncodedData(
-                    f"Packed doesn't contain required '{required_field}' field"
-                )
-
         match packet_type:
             case KRPCPacketType.QUERY:
-                try:
-                    query_type = KRPCQueryType(data[b"q"])
-                except ValueError:
-                    raise InvalidKRPCEncodedData("Packet contains invalid query type")
-
-                arguments = data[b"a"]
-
-                if not isinstance(arguments, dict):
-                    raise InvalidKRPCEncodedData(
-                        "Packet contains invalid arguments data type"
-                    )
-
-                return KRPCQueryPacket(transaction_id, query_type, arguments)
-
+                return KRPCQueryPacket.from_dict(data, transaction_id)
             case KRPCPacketType.RESPONSE:
-                response = data[b"r"]
-
-                if not isinstance(response, dict):
-                    raise InvalidKRPCEncodedData(
-                        "Packet contains invalid response data type"
-                    )
-
-                return KRPCResponsePacket(transaction_id, response)
-
+                return KRPCResponsePacket.from_dict(data, transaction_id)
             case KRPCPacketType.ERROR:
-                error = data[b"e"]
+                return KRPCErrorPacket.from_dict(data, transaction_id)
 
-                if (
-                    not isinstance(error, list)
-                    or not isinstance(error[0], int)
-                    or not isinstance(error[1], bytes)
-                ):
-                    raise InvalidKRPCEncodedData(
-                        "Packet contains invalid error data type"
-                    )
+    @classmethod
+    def from_bencoded(cls, data: bytes):
+        try:
+            decoded_data = bencode.decode(data)
+        except bencode.BencodeDecodeError:
+            raise InvalidKRPCEncodedData(f"{data!r} could not be decoded")
 
-                return KRPCErrorPacket(transaction_id, (error[0], error[1]))
+        if not isinstance(decoded_data, dict):
+            raise InvalidKRPCEncodedData(f"{data!r} is not a dictionary")
+
+        return cls.from_dict(decoded_data)
 
     def same_transaction(self, other: Self) -> bool:
         return self.transaction_id == other.transaction_id
 
-    def to_bencoded(self) -> bytes:
-        if self.packet_type is None:
-            raise InvalidKRPCPacket("No specific KRPC packet type present")
-
+    def to_bencoded(self):
         data = {}
 
         data["t"] = self.transaction_id
 
-        data["y"] = self.packet_type.value
+        if self.PACKET_TYPE is None:
+            raise InvalidKRPCPacket("No specific KRPC packet type present")
 
-        match self.packet_type:
+        data["y"] = self.PACKET_TYPE.value
+
+        match self.PACKET_TYPE:
             case KRPCPacketType.QUERY:
-                data["q"] = self.query_type.value
+                if self.METHOD_TYPE is None:
+                    raise InvalidKRPCPacket("No specific KRPC method type present")
+                data["q"] = self.METHOD_TYPE.value
                 data["a"] = self.arguments
             case KRPCPacketType.RESPONSE:
-                data["r"] = self.response
+                data["r"] = self.return_values
             case KRPCPacketType.ERROR:
-                data["e"] = list(self.error)
+                data["e"] = [self.error_code, self.error_msg]
 
         return bencode.encode(data)
 
 
-class KRPCQueryPacket(KRPCPacket):
-    packet_type = KRPCPacketType.QUERY
+# KRPC PACKET TYPES
 
-    def __init__(
-        self,
-        transaction_id: bytes | None,
-        query_type: KRPCQueryType,
-        arguments: bencode.BencodableDict,
-    ):
+
+class KRPCQueryPacket(KRPCPacket):
+    PACKET_TYPE = KRPCPacketType.QUERY
+
+    def __init__(self, arguments: bencode.BencodableDict, transaction_id: bytes | None):
         super().__init__(transaction_id)
-        self.query_type = query_type
         self.arguments = arguments
+
+        if (
+            not b"id" in self.arguments
+            or not isinstance(self.arguments[b"id"], bytes)
+            or len(self.arguments[b"id"]) != NODE_ID_SIZE
+        ):
+            raise InvalidKRPCPacket(f"{self.arguments!r} has an invalid 'id' key")
+
+    @classmethod
+    def from_dict(cls, data: bencode.BencodableDict, transaction_id: bytes | None):
+        try:
+            method_type = KRPCMethodType(data.get(b"q"))
+        except ValueError:
+            raise InvalidKRPCPacket(f"{data!r} has an invalid 'q' key")
+
+        if b"a" not in data or not isinstance(data[b"a"], dict):
+            raise InvalidKRPCPacket(f"{data!r} has an invalid 'a' key")
+
+        query_arguments = data[b"a"]
+
+        match method_type:
+            case KRPCMethodType.PING:
+                return KRPCPingQueryPacket(query_arguments, transaction_id)
+            case KRPCMethodType.FIND_NODE:
+                return KRPCFindNodeQueryPacket(query_arguments, transaction_id)
+            case KRPCMethodType.GET_PEERS:
+                return KRPCGetPeersQueryPacket(query_arguments, transaction_id)
+            case KRPCMethodType.ANNOUNCE_PEER:
+                return KRPCAnnouncePeerQueryPacket(query_arguments, transaction_id)
 
 
 class KRPCResponsePacket(KRPCPacket):
-    packet_type = KRPCPacketType.RESPONSE
+    PACKET_TYPE = KRPCPacketType.RESPONSE
 
-    def __init__(self, transaction_id: bytes | None, response: bencode.BencodableDict):
+    def __init__(
+        self, return_values: bencode.BencodableDict, transaction_id: bytes | None
+    ):
         super().__init__(transaction_id)
-        self.response = response
+        self.return_values = return_values
+
+        if (
+            not b"id" in self.return_values
+            or not isinstance(self.return_values[b"id"], bytes)
+            or len(self.return_values[b"id"]) != NODE_ID_SIZE
+        ):
+            raise InvalidKRPCPacket(f"{self.return_values!r} has an invalid 'id' key")
+
+    @classmethod
+    def from_dict(cls, data: bencode.BencodableDict, transaction_id: bytes | None):
+        if b"r" not in data or not isinstance(data[b"r"], dict):
+            raise InvalidKRPCPacket(f"{data!r} has an invalid 'r' key")
+
+        response_values = data[b"r"]
+
+        return cls(response_values, transaction_id)
 
 
 class KRPCErrorPacket(KRPCPacket):
-    packet_type = KRPCPacketType.ERROR
+    PACKET_TYPE = KRPCPacketType.ERROR
 
-    def __init__(self, transaction_id: bytes | None, error: tuple[int, str | bytes]):
+    def __init__(self, error_code: int, error_msg: str, transaction_id: bytes | None):
         super().__init__(transaction_id)
-        self.error = error
+        self.error_code = error_code
+        self.error_msg = error_msg
+
+    @classmethod
+    def from_dict(cls, data: bencode.BencodableDict, transaction_id: bytes | None):
+        if b"e" not in data or not isinstance(data[b"e"], list) or len(data[b"e"]) != 2:
+            raise InvalidKRPCPacket(f"{data!r} has an invalid 'e' key")
+
+        error_code, error_msg = data[b"e"]
+
+        if not isinstance(error_code, int) or not isinstance(error_msg, bytes):
+            raise InvalidKRPCPacket(f"{data!r} has an invalid error code or message")
+
+        try:
+            error_msg = error_msg.decode()
+        except UnicodeDecodeError:
+            raise InvalidKRPCPacket(f"{data!r} has a wrongly encoded error message")
+
+        return cls(error_code, error_msg, transaction_id)
+
+
+# KRPC QUERY TYPES
+
+
+class KRPCPingQueryPacket(KRPCQueryPacket):
+    METHOD_TYPE = KRPCMethodType.PING
+
+    def __init__(self, arguments: bencode.BencodableDict, transaction_id: bytes | None):
+        super().__init__(arguments, transaction_id)
+
+
+class KRPCFindNodeQueryPacket(KRPCQueryPacket):
+    METHOD_TYPE = KRPCMethodType.FIND_NODE
+
+    def __init__(self, arguments: bencode.BencodableDict, transaction_id: bytes | None):
+        if (
+            b"target" not in arguments
+            or not isinstance(arguments[b"target"], bytes)
+            or len(arguments[b"target"]) != NODE_ID_SIZE
+        ):
+            raise InvalidKRPCPacket(f"{arguments!r} has an invalid 'target' key")
+
+        super().__init__(arguments, transaction_id)
+
+
+class KRPCGetPeersQueryPacket(KRPCQueryPacket):
+    METHOD_TYPE = KRPCMethodType.GET_PEERS
+
+    def __init__(self, arguments: bencode.BencodableDict, transaction_id: bytes | None):
+        if (
+            b"info_hash" not in arguments
+            or not isinstance(arguments[b"info_hash"], bytes)
+            or len(arguments[b"info_hash"]) != 20
+        ):
+            raise InvalidKRPCPacket(f"{arguments!r} has an invalid 'info_hash' key")
+
+        super().__init__(arguments, transaction_id)
+
+
+class KRPCAnnouncePeerQueryPacket(KRPCQueryPacket):
+    METHOD_TYPE = KRPCMethodType.ANNOUNCE_PEER
+
+    def __init__(self, arguments: bencode.BencodableDict, transaction_id: bytes | None):
+        if (
+            b"info_hash" not in arguments
+            or not isinstance(arguments[b"info_hash"], bytes)
+            or len(arguments[b"info_hash"]) != 20
+        ):
+            raise InvalidKRPCPacket(f"{arguments!r} has an invalid 'info_hash' key")
+
+        if (
+            b"port" not in arguments
+            or not isinstance(arguments[b"port"], int)
+            or arguments[b"port"] < 1
+            or arguments[b"port"] > 65535
+        ):
+            raise InvalidKRPCPacket(f"{arguments!r} has an invalid 'port' key")
+
+        if b"token" not in arguments or not isinstance(arguments[b"token"], bytes):
+            raise InvalidKRPCPacket(f"{arguments!r} has an invalid 'token' key")
+
+        if b"implied_port" not in arguments:
+            arguments[b"implied_port"] = 0
+
+        elif arguments[b"implied_port"] not in (0, 1):
+            raise InvalidKRPCPacket(f"{arguments!r} has an invalid 'implied_port' key")
+
+        super().__init__(arguments, transaction_id)
+
+
+# KRPC REQUEST TYPES
+
+
+class KRPCPingResponsePacket(KRPCResponsePacket):
+    METHOD_TYPE = KRPCMethodType.PING
+
+    def __init__(
+        self, return_values: bencode.BencodableDict, transaction_id: bytes | None
+    ):
+        super().__init__(return_values, transaction_id)
+
+
+class KRPCFindNodeResponsePacket(KRPCResponsePacket):
+    METHOD_TYPE = KRPCMethodType.FIND_NODE
+
+    def __init__(
+        self, return_values: bencode.BencodableDict, transaction_id: bytes | None
+    ):
+        if (
+            b"nodes" not in return_values
+            or not isinstance(return_values[b"nodes"], bytes)
+            or len(return_values[b"nodes"]) % NODE_INFO_SIZE != 0
+        ):
+            raise InvalidKRPCPacket(f"{return_values!r} has an invalid 'nodes' key")
+
+        super().__init__(return_values, transaction_id)
+
+
+class KRPCGetPeersResponsePacket(KRPCResponsePacket):
+    METHOD_TYPE = KRPCMethodType.GET_PEERS
+
+    def __init__(
+        self, return_values: bencode.BencodableDict, transaction_id: bytes | None
+    ):
+        if b"token" not in return_values or not isinstance(
+            return_values[b"token"], bytes
+        ):
+            raise InvalidKRPCPacket(f"{return_values!r} has an invalid 'token' key")
+
+        if (
+            b"nodes" not in return_values
+            or not isinstance(return_values[b"nodes"], bytes)
+            or len(return_values[b"nodes"]) % NODE_INFO_SIZE != 0
+        ) and (
+            b"values" not in return_values
+            or not isinstance(return_values[b"values"], list)
+            or any(
+                not isinstance(peer_info, bytes) or len(peer_info) != IP_ADDR_PORT_SIZE
+                for peer_info in return_values[b"values"]
+            )
+        ):
+            raise InvalidKRPCPacket(
+                f"{return_values!r} has an invalid 'nodes' or 'values' key"
+            )
+
+        super().__init__(return_values, transaction_id)
+
+
+class KRPCAnnouncePeerResponsePacket(KRPCResponsePacket):
+    METHOD_TYPE = KRPCMethodType.ANNOUNCE_PEER
+
+    def __init__(
+        self, return_values: bencode.BencodableDict, transaction_id: bytes | None
+    ):
+        super().__init__(return_values, transaction_id)
