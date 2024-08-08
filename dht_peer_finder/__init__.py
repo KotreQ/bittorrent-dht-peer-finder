@@ -15,7 +15,12 @@ from .utils.request import Request, RequestHandler, TimedRequest
 
 RECEIVE_BUFFER_SIZE = 65536
 
-BITTORRENT_BOOTSTRAP = ("router.bittorrent.com", 6881)
+BITTORRENT_BOOTSTRAP_ADDRS = [
+    ("router.bittorrent.com", 6881),
+    ("router.utorrent.com", 6881),
+    ("dht.transmissionbt.com", 6881),
+]
+
 
 REQUEST_TIMEOUT = 2
 
@@ -35,13 +40,16 @@ class BitTorrentDHTClient:
 
         threading.Thread(target=self.listener_worker, daemon=True).start()
 
-        bootstrap_addr = IpAddrPort(
-            socket.gethostbyname(BITTORRENT_BOOTSTRAP[0]), BITTORRENT_BOOTSTRAP[1]
-        )
-        bootstrap_node_info = NodeInfo(
-            self.get_addr_nodeid(bootstrap_addr), bootstrap_addr
-        )
-        self.routing_table.add_node(bootstrap_node_info)
+        for bootstrap_addr in BITTORRENT_BOOTSTRAP_ADDRS:
+            bootstrap_addr = IpAddrPort(
+                socket.gethostbyname(bootstrap_addr[0]), bootstrap_addr[1]
+            )
+            try:
+                node_id = self.get_addr_nodeid(bootstrap_addr)
+            except KRPCRequestError:
+                continue
+            bootstrap_node_info = NodeInfo(node_id, bootstrap_addr)
+            self.routing_table.add_node(bootstrap_node_info)
 
         self.bootstrap()
 
