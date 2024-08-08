@@ -1,150 +1,137 @@
 import socket
+import threading
+from collections import deque
 from random import randbytes
-from typing import Iterable
 
-from . import bencode
+from .dht_exceptions import KRPCPacketError, KRPCRequestError
+from .dht_packets import (
+    KRPCFindNodeQueryPacket,
+    KRPCPacket,
+    KRPCPacketType,
+    KRPCPingQueryPacket,
+)
 from .dht_structures import NODE_ID_SIZE, IpAddrPort, NodeID, NodeInfo, RoutingTable
+from .utils.request import Request, RequestHandler, TimedRequest
 
 RECEIVE_BUFFER_SIZE = 65536
 
+BITTORRENT_BOOTSTRAP = ("router.bittorrent.com", 6881)
 
-class BitTorrentDHTConnection:
-    def __init__(
-        self,
-        bootstrap_addr: tuple[str, int],
-        *,
-        max_retries: int = 3,
-        timeout: float = 0.5,
-    ):
+REQUEST_TIMEOUT = 2
+
+CLOSEST_RESPONSE_COUNT = 16
+
+
+class BitTorrentDHTClient:
+    def __init__(self):
         self.node_id = NodeID(randbytes(NODE_ID_SIZE))
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock.settimeout(timeout)
-
-        self.max_retries = max_retries
+        self.sock.bind(("", 0))
 
         self.routing_table = RoutingTable(self.node_id)
 
-        bootstrap_addr_info = IpAddrPort(
-            socket.gethostbyname(bootstrap_addr[0]), bootstrap_addr[1]
+        self.request_handler = RequestHandler()
+
+        threading.Thread(target=self.listener_worker, daemon=True).start()
+
+        bootstrap_addr = IpAddrPort(
+            socket.gethostbyname(BITTORRENT_BOOTSTRAP[0]), BITTORRENT_BOOTSTRAP[1]
         )
-        bootstrap_node_id = self.get_addr_id(bootstrap_addr_info)
-        bootstrap_node = NodeInfo(bootstrap_node_id, bootstrap_addr_info)
+        bootstrap_node_info = NodeInfo(
+            self.get_addr_nodeid(bootstrap_addr), bootstrap_addr
+        )
+        self.routing_table.add_node(bootstrap_node_info)
 
-        self.routing_table.add_node(bootstrap_node)
+        self.bootstrap()
 
-    def send_krpc_query(
-        self,
-        query_type: str,
-        query_args: bencode.BencodableDict,
-        target: IpAddrPort | NodeID,
-    ) -> bencode.BencodableDict:
-        if isinstance(target, NodeID):
-            target = self.routing_table.get_closest(target)[0].ip_addr_port
+    def send_krpc_request(self, krpc_packet: KRPCPacket, addr: IpAddrPort) -> Request:
+        request = TimedRequest((krpc_packet, addr), REQUEST_TIMEOUT)
+        self.request_handler.add_request(request)
 
-        target_addr = target.to_tuple()
+        self.sock.sendto(krpc_packet.to_bencoded(), addr.to_tuple())
 
-        query_args["id"] = self.node_id.node_id
+        return request
 
-        retries = 0
-        while retries <= self.max_retries:
+    def listener_worker(self):
+        while True:
+            recv_data, recv_addr = self.sock.recvfrom(RECEIVE_BUFFER_SIZE)
+
+            recv_addr = IpAddrPort(*recv_addr)
+
             try:
-                transaction_id = randbytes(2)
+                recv_krpc_packet = KRPCPacket.from_bencoded(recv_data)
+            except KRPCPacketError:
+                continue
 
-                request_data = bencode.encode(
-                    {
-                        "t": transaction_id,
-                        "y": "q",  # message type = query
-                        "q": query_type,
-                        "a": query_args,
-                    }
+            for unresolved_request in self.request_handler.to_list():
+                request_packet, request_addr = unresolved_request.input_data
+                if (
+                    recv_krpc_packet.same_transaction(request_packet)
+                    and recv_addr == request_addr
+                ):
+                    if recv_krpc_packet.PACKET_TYPE == KRPCPacketType.RESPONSE:
+                        success = True
+                    else:
+                        success = False
+
+                    unresolved_request.resolve(recv_krpc_packet, success)
+                    break
+
+    def get_addr_nodeid(self, addr: IpAddrPort) -> NodeID:
+        ping_request = self.send_krpc_request(
+            KRPCPingQueryPacket({b"id": self.node_id.node_id}, None),
+            addr,
+        )
+
+        ping_request.wait()
+        ping_success, ping_response = ping_request.get_result()
+        if not ping_success:
+            raise KRPCRequestError("Ping request failed")
+
+        return NodeID(ping_response.return_values[b"id"])
+
+    def bootstrap(self):
+        sent_requests: deque[Request] = deque()
+
+        asked_nodes: set[NodeInfo] = set()
+        stale_nodes: set[NodeInfo] = set()
+
+        while True:
+            closest_nodes = self.routing_table.get_closest(
+                self.node_id, CLOSEST_RESPONSE_COUNT
+            )
+
+            nodes_to_ask = list(
+                filter(lambda node: node not in asked_nodes, closest_nodes)
+            )
+            if not nodes_to_ask:
+                break
+
+            for request_node in nodes_to_ask:
+                request = self.send_krpc_request(
+                    KRPCFindNodeQueryPacket(
+                        {b"id": self.node_id.node_id, b"target": self.node_id.node_id},
+                        None,
+                    ),
+                    request_node.ip_addr_port,
                 )
+                sent_requests.append((request_node, request))
+                asked_nodes.add(request_node)
 
-                self.sock.sendto(request_data, target_addr)
+            while sent_requests:
+                request_node, request = sent_requests.popleft()
+                request.wait()
 
-                while True:
-                    resp_data, resp_addr = self.sock.recvfrom(RECEIVE_BUFFER_SIZE)
-                    if target_addr != resp_addr:
-                        continue
-                    try:
-                        resp_data = bencode.decode(resp_data)
-                        if not isinstance(resp_data, dict):
-                            raise TypeError(
-                                f"Response data: {resp_data!r} is of invalid type: {type(resp_data).__name__}"
-                            )
-                    except (ValueError, TypeError):
-                        continue
-
-                    if resp_data.get(b"t") != transaction_id:
-                        continue
-
-                    if resp_data.get(b"y") != b"r":  # message type != response
-                        continue
-
-                    if b"r" not in resp_data or not isinstance(resp_data[b"r"], dict):
-                        continue
-
-                    return resp_data[b"r"]
-
-            except socket.timeout:
-                retries += 1
-
-        raise ConnectionError(f"Max retries exceeded: {self.max_retries}")
-
-    def ping(self) -> bool:
-        try:
-            self.send_krpc_query("ping", {}, NodeID(randbytes(NODE_ID_SIZE)))
-        except ConnectionError:
-            return False
-        return True
-
-    def get_addr_id(self, addr: IpAddrPort) -> NodeID:
-        resp = self.send_krpc_query("ping", {}, addr)
-        if b"id" not in resp or not isinstance(resp[b"id"], bytes):
-            raise TypeError("Node id not found in ping response")
-        return NodeID(resp[b"id"])
-
-    def get_torrent_peers(self, torrent_hash: NodeID) -> Iterable[IpAddrPort]:
-        nodes_to_check: list[NodeInfo] = []
-        for node in self.routing_table.iter_closest(torrent_hash):
-            nodes_to_check.append(node)
-
-            while nodes_to_check:
-                node = nodes_to_check.pop()
-
-                try:
-                    resp = self.send_krpc_query(
-                        "get_peers",
-                        {"info_hash": torrent_hash.node_id},
-                        node.ip_addr_port,
-                    )
-                    # request successful so add to routing table
-                    self.routing_table.add_node(node)
-                except ConnectionError:
+                success, response_packet = request.get_result()
+                if not success:
+                    stale_nodes.add(request_node)
                     continue
 
-                if b"values" in resp and isinstance(resp[b"values"], list):
-                    for value in resp[b"values"]:
-                        if not isinstance(value, bytes):
-                            raise TypeError(
-                                f"Value: {value!r} is of invalid type: {type(value).__name__}"
-                            )
+                received_nodes = NodeInfo.from_compact_list(
+                    response_packet.return_values[b"nodes"]
+                )
+                for request_node in received_nodes:
+                    self.routing_table.add_node(request_node)
 
-                        value = IpAddrPort.from_compact(value)
-                        yield value
-                    continue
-
-                elif b"nodes" in resp and isinstance(resp[b"nodes"], bytes):
-                    encoded_node_infos = resp[b"nodes"]
-                    node_infos = NodeInfo.from_compact_list(encoded_node_infos)
-                    node_infos.sort(
-                        key=lambda node_info: node_info.node_id.distance(torrent_hash),
-                        reverse=True,
-                    )
-
-                    nodes_to_check.extend(
-                        filter(
-                            lambda node_info: node_info not in nodes_to_check,
-                            node_infos,
-                        )
-                    )
+            self.routing_table.remove_nodes(stale_nodes)
