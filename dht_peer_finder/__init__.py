@@ -3,7 +3,7 @@ import threading
 from collections import deque
 from random import randbytes
 
-from .dht_exceptions import InvalidKRPCPacket, KRPCPacketError, KRPCRequestError
+from .dht_exceptions import KRPCPacketError, KRPCRequestError
 from .dht_packets import (
     KRPCFindNodeQueryPacket,
     KRPCPacket,
@@ -85,12 +85,11 @@ class BitTorrentDHTClient:
                 ):
                     try:
                         # check if packet is of valid type
-                        recv_krpc_packet = required_response_type(
-                            recv_krpc_packet.return_values,
-                            recv_krpc_packet.transaction_id,
+                        recv_krpc_packet = required_response_type.from_bencoded(
+                            recv_data
                         )
                         success = True
-                    except InvalidKRPCPacket:
+                    except KRPCPacketError:
                         success = False
 
                     unresolved_request.resolve(recv_krpc_packet, success)
