@@ -119,15 +119,19 @@ class KRPCQueryPacket(KRPCPacket):
 
         query_arguments = data[b"a"]
 
+        return cls.create_type(method_type)(query_arguments, transaction_id)
+
+    @staticmethod
+    def create_type(method_type: KRPCMethodType):
         match method_type:
             case KRPCMethodType.PING:
-                return KRPCPingQueryPacket(query_arguments, transaction_id)
+                return KRPCPingQueryPacket
             case KRPCMethodType.FIND_NODE:
-                return KRPCFindNodeQueryPacket(query_arguments, transaction_id)
+                return KRPCFindNodeQueryPacket
             case KRPCMethodType.GET_PEERS:
-                return KRPCGetPeersQueryPacket(query_arguments, transaction_id)
+                return KRPCGetPeersQueryPacket
             case KRPCMethodType.ANNOUNCE_PEER:
-                return KRPCAnnouncePeerQueryPacket(query_arguments, transaction_id)
+                return KRPCAnnouncePeerQueryPacket
 
 
 class KRPCResponsePacket(KRPCPacket):
@@ -154,6 +158,18 @@ class KRPCResponsePacket(KRPCPacket):
         response_values = data[b"r"]
 
         return cls(response_values, transaction_id)
+
+    @staticmethod
+    def create_type(method_type: KRPCMethodType):
+        match method_type:
+            case KRPCMethodType.PING:
+                return KRPCPingResponsePacket
+            case KRPCMethodType.FIND_NODE:
+                return KRPCFindNodeResponsePacket
+            case KRPCMethodType.GET_PEERS:
+                return KRPCGetPeersResponsePacket
+            case KRPCMethodType.ANNOUNCE_PEER:
+                return KRPCAnnouncePeerResponsePacket
 
 
 class KRPCErrorPacket(KRPCPacket):
