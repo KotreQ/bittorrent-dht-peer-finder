@@ -32,16 +32,11 @@ class KRPCPacket:
         self.transaction_id = transaction_id
 
     @classmethod
-    def from_dict(cls, data: bencode.BencodableDict):
+    def from_dict(cls, data: bencode.BencodableDict, transaction_id: bytes | None):
         try:
             packet_type = KRPCPacketType(data.get(b"y"))
         except ValueError:
             raise InvalidKRPCPacket(f"{data!r} has an invalid 'y' key")
-
-        if b"t" not in data or not isinstance(data[b"t"], bytes):
-            raise InvalidKRPCPacket(f"{data!r} has an invalid 't' key")
-
-        transaction_id = data[b"t"]
 
         match packet_type:
             case KRPCPacketType.QUERY:
@@ -61,7 +56,12 @@ class KRPCPacket:
         if not isinstance(decoded_data, dict):
             raise InvalidKRPCEncodedData(f"{data!r} is not a dictionary")
 
-        return cls.from_dict(decoded_data)
+        if b"t" not in decoded_data or not isinstance(decoded_data[b"t"], bytes):
+            raise InvalidKRPCPacket(f"{decoded_data!r} has an invalid 't' key")
+
+        transaction_id = decoded_data[b"t"]
+
+        return cls.from_dict(decoded_data, transaction_id)
 
     def same_transaction(self, other: Self) -> bool:
         return self.transaction_id == other.transaction_id
