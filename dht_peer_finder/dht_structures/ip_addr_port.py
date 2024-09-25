@@ -21,6 +21,11 @@ class IpAddrPort:
             int.from_bytes(compact[4:], "big"),
         )
 
+    def to_compact(self) -> bytes:
+        ip_packed = socket.inet_pton(socket.AF_INET, ".".join(map(str, self.ip)))
+        port_packed = self.port.to_bytes(2, "big")
+        return ip_packed + port_packed
+
     def to_tuple(self):
         return ".".join(map(str, self.ip)), self.port
 

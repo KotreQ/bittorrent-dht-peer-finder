@@ -25,6 +25,12 @@ class NodeInfo:
             for i in range(0, len(compact_list), NODE_INFO_SIZE)
         ]
 
+    def to_compact(self) -> bytes:
+        node_id_compact = self.node_id.node_id
+        ip_addr_port_compact = self.ip_addr_port.to_compact()
+
+        return node_id_compact + ip_addr_port_compact
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
             raise TypeError(
