@@ -1,3 +1,4 @@
+import os
 import socket
 import threading
 from collections import deque
@@ -27,6 +28,9 @@ REQUEST_TIMEOUT = 2
 CLOSEST_RESPONSE_COUNT = 16
 
 
+DEFAULT_CACHE_PATH = "./.cache/btdht.bin"
+
+
 class BitTorrentDHTClient:
     def __init__(self):
         self.node_id = NodeID(randbytes(NODE_ID_SIZE))
@@ -51,7 +55,26 @@ class BitTorrentDHTClient:
             bootstrap_node_info = NodeInfo(node_id, bootstrap_addr)
             self.routing_table.add_node(bootstrap_node_info)
 
+        try:
+            self.import_cache()
+        except FileNotFoundError:
+            pass
+
         self.bootstrap()
+
+        self.export_cache()
+
+    def export_cache(self, path: str = DEFAULT_CACHE_PATH):
+        if os.path.isdir(path):
+            raise IsADirectoryError(path)
+
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(self.routing_table.export_data())
+
+    def import_cache(self, path: str = DEFAULT_CACHE_PATH):
+        with open(path, "rb") as f:
+            self.routing_table.import_data(f.read())
 
     def send_krpc_request(self, krpc_packet: KRPCPacket, addr: IpAddrPort) -> Request:
         request = TimedRequest((krpc_packet, addr), REQUEST_TIMEOUT)
