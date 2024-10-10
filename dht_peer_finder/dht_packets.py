@@ -50,7 +50,7 @@ class KRPCPacket:
     def from_bencoded(cls, data: bytes):
         try:
             decoded_data = bencode.decode(data)
-        except bencode.BencodeDecodeError:
+        except bencode.BencodeDecodingError:
             raise InvalidKRPCEncodedData(f"{data!r} could not be decoded")
 
         if not isinstance(decoded_data, dict):
