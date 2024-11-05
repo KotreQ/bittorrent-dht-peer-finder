@@ -40,7 +40,8 @@ class RoutingTable:
             if is_last_bucket:
                 self._add_bucket()
 
-    def remove_nodes(self, node_ids: set[NodeID]):
+    def remove_nodes(self, node_ids: Iterable[NodeID]):
+        node_ids = set(node_ids)
         for k_bucket in self.k_buckets:
             k_bucket.pop_nodes(node_ids)
 
