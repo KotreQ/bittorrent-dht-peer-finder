@@ -3,6 +3,7 @@ import socket
 import threading
 from collections import deque
 from random import randbytes
+from typing import Iterable
 
 from .dht_exceptions import KRPCPacketError, KRPCRequestError
 from .dht_packets import (
@@ -117,6 +118,24 @@ class BitTorrentDHTClient:
 
                     unresolved_request.resolve(recv_krpc_packet, success)
                     break
+
+    def check_nodes_connectivity(self, nodes: Iterable[NodeInfo]) -> list[bool]:
+        is_online: list[bool] = []
+
+        ping_requests = [
+            self.send_krpc_request(
+                KRPCPingQueryPacket({b"id": self.node_id.node_id}, None),
+                node.ip_addr_port,
+            )
+            for node in nodes
+        ]
+
+        for ping_request in ping_requests:
+            ping_request.wait()
+            ping_success, _ = ping_request.get_result()
+            is_online.append(ping_success)
+
+        return is_online
 
     def get_addr_nodeid(self, addr: IpAddrPort) -> NodeID:
         ping_request = self.send_krpc_request(
