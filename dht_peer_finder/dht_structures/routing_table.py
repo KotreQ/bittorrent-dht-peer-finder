@@ -61,6 +61,9 @@ class RoutingTable:
     def get_closest(self, node_id: NodeID, max_count: int = 1) -> list[NodeInfo]:
         return list(islice(self.iter_closest(node_id), max_count))
 
+    def get_all_nodes(self) -> list[NodeInfo]:
+        return sum((k_bucket.nodes for k_bucket in self.k_buckets), start=[])
+
     def export_data(self) -> bytes:
         return b"".join(
             node_info.to_compact()

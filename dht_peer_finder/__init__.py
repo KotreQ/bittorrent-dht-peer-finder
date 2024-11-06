@@ -137,6 +137,17 @@ class BitTorrentDHTClient:
 
         return is_online
 
+    def purge_routing_table(self):
+        nodes = self.routing_table.get_all_nodes()
+
+        inactive_nodes = []
+
+        for node, is_active in zip(nodes, self.check_nodes_connectivity(nodes)):
+            if not is_active:
+                inactive_nodes.append(node)
+
+        self.routing_table.remove_nodes(inactive_nodes)
+
     def get_addr_nodeid(self, addr: IpAddrPort) -> NodeID:
         ping_request = self.send_krpc_request(
             KRPCPingQueryPacket({b"id": self.node_id.node_id}, None),
