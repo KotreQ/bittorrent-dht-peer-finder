@@ -61,7 +61,13 @@ class BitTorrentDHTClient:
         except FileNotFoundError:
             pass
 
+        # purge after importing
+        self.purge_routing_table()
+
         self.bootstrap()
+
+        # purge once again after bootstrap
+        self.purge_routing_table()
 
         self.export_cache()
 
