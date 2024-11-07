@@ -48,6 +48,10 @@ class RoutingTable:
         except KBucketSpaceError:
             if is_last_bucket:
                 self._add_bucket()
+                self.add_node(node_info)  # retry after adding new k-bucket
+            else:
+                if self.purge_k_bucket(k_bucket):
+                    k_bucket.add_node(node_info)  # retry if purged any nodes
 
     def remove_nodes(self, node_ids: Iterable[NodeID]):
         node_ids = set(node_ids)
