@@ -127,7 +127,9 @@ class BitTorrentDHTClient:
                     unresolved_request.resolve(recv_krpc_packet, success)
                     break
 
-    def check_nodes_connectivity(self, nodes: Iterable[NodeInfo]) -> list[bool]:
+    def check_nodes_connectivity(
+        self, nodes: Iterable[NodeInfo], *, strict_check: bool = False
+    ) -> list[bool]:
         is_online: list[bool] = []
 
         nodes = list(nodes)
@@ -137,7 +139,7 @@ class BitTorrentDHTClient:
                 KRPCPingQueryPacket({b"id": self.node_id.node_id}, None),
                 node.ip_addr_port,
             )
-            if node.get_seen_time_delta() > ACTIVE_CHECK_DURATION
+            if node.get_seen_time_delta() > ACTIVE_CHECK_DURATION or strict_check
             else None
             for node in nodes
         ]
