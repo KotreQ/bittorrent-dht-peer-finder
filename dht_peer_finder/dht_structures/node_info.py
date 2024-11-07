@@ -1,3 +1,4 @@
+import time
 from .ip_addr_port import IP_ADDR_PORT_SIZE, IpAddrPort
 from .node_id import NODE_ID_SIZE, NodeID
 
@@ -5,9 +6,13 @@ NODE_INFO_SIZE = NODE_ID_SIZE + IP_ADDR_PORT_SIZE
 
 
 class NodeInfo:
-    def __init__(self, node_id: NodeID, ip_addr_port: IpAddrPort):
+    def __init__(
+        self, node_id: NodeID, ip_addr_port: IpAddrPort, last_seen_time: int = 0
+    ):
         self.node_id = node_id
         self.ip_addr_port = ip_addr_port
+
+        self.last_seen_time = last_seen_time
 
     @classmethod
     def from_compact(cls, compact: bytes):
@@ -30,6 +35,12 @@ class NodeInfo:
         ip_addr_port_compact = self.ip_addr_port.to_compact()
 
         return node_id_compact + ip_addr_port_compact
+
+    def update_seen_time(self):
+        self.last_seen_time = time.time()
+
+    def get_seen_time_delta(self):
+        return time.time() - self.last_seen_time
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
