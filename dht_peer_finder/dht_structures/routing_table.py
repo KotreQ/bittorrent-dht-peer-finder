@@ -1,5 +1,5 @@
 from itertools import chain, islice
-from typing import Iterable
+from typing import Callable, Iterable
 
 from ..dht_exceptions import *
 from .k_bucket import KBucket
@@ -8,9 +8,18 @@ from .node_info import NodeInfo
 
 
 class RoutingTable:
-    def __init__(self, client_node_id: NodeID):
+    def __init__(
+        self,
+        client_node_id: NodeID,
+        *,
+        active_node_checker: Callable[
+            [Iterable[NodeInfo]], list[bool]
+        ] = lambda nodes: [True for node in nodes],
+    ):
         self.client_node_id = client_node_id
         self.k_buckets: list[KBucket] = [KBucket(self.client_node_id, 0)]
+
+        self.active_node_checker = active_node_checker
 
     def _get_bucket_index(self, node_id: NodeID) -> int:
         common_bits = self.client_node_id.common_bits(node_id)
@@ -44,6 +53,17 @@ class RoutingTable:
         node_ids = set(node_ids)
         for k_bucket in self.k_buckets:
             k_bucket.pop_nodes(node_ids)
+
+    def purge_k_bucket(self, k_bucket: KBucket) -> list[NodeInfo]:
+        nodes = k_bucket.nodes
+
+        inactive_nodes: list[NodeInfo] = []
+
+        for node_info, is_active in zip(nodes, self.active_node_checker(nodes)):
+            if not is_active:
+                inactive_nodes.append(node_info)
+
+        return k_bucket.pop_nodes(inactive_nodes)
 
     def iter_closest(self, node_id: NodeID) -> Iterable[NodeInfo]:
         target_k_bucket_index = self._get_bucket_index(node_id)

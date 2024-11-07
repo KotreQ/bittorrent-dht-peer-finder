@@ -41,7 +41,9 @@ class BitTorrentDHTClient:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(("", 0))
 
-        self.routing_table = RoutingTable(self.node_id)
+        self.routing_table = RoutingTable(
+            self.node_id, active_node_checker=self.check_nodes_connectivity
+        )
 
         self.request_handler = RequestHandler()
 
