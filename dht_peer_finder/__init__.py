@@ -91,7 +91,10 @@ class BitTorrentDHTClient:
         request = TimedRequest((krpc_packet, addr), REQUEST_TIMEOUT)
         self.request_handler.add_request(request)
 
-        self.sock.sendto(krpc_packet.to_bencoded(), addr.to_tuple())
+        try:
+            self.sock.sendto(krpc_packet.to_bencoded(), addr.to_tuple())
+        except OSError:
+            request.resolve(None, False)
 
         return request
 
