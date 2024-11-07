@@ -26,6 +26,8 @@ BITTORRENT_BOOTSTRAP_ADDRS = [
 
 REQUEST_TIMEOUT = 2
 
+ACTIVE_CHECK_DURATION = 30
+
 CLOSEST_RESPONSE_COUNT = 16
 
 
@@ -128,17 +130,26 @@ class BitTorrentDHTClient:
     def check_nodes_connectivity(self, nodes: Iterable[NodeInfo]) -> list[bool]:
         is_online: list[bool] = []
 
+        nodes = list(nodes)
+
         ping_requests = [
             self.send_krpc_request(
                 KRPCPingQueryPacket({b"id": self.node_id.node_id}, None),
                 node.ip_addr_port,
             )
+            if node.get_seen_time_delta() > ACTIVE_CHECK_DURATION
+            else None
             for node in nodes
         ]
 
-        for ping_request in ping_requests:
+        for node, ping_request in zip(nodes, ping_requests):
+            if ping_request is None:
+                is_online.append(True)
+                continue
             ping_request.wait()
             ping_success, _ = ping_request.get_result()
+            if ping_success:
+                node.update_seen_time()
             is_online.append(ping_success)
 
         return is_online
