@@ -100,7 +100,10 @@ class BitTorrentDHTClient:
 
     def listener_worker(self):
         while True:
-            recv_data, recv_addr = self.sock.recvfrom(RECEIVE_BUFFER_SIZE)
+            try:
+                recv_data, recv_addr = self.sock.recvfrom(RECEIVE_BUFFER_SIZE)
+            except OSError:
+                continue
 
             recv_addr = IpAddrPort(*recv_addr)
 
