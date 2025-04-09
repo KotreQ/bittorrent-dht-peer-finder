@@ -10,6 +10,7 @@ from .dht_packets import (
     KRPCFindNodeQueryPacket,
     KRPCPacket,
     KRPCPingQueryPacket,
+    KRPCQueryPacket,
     KRPCResponsePacket,
 )
 from .dht_structures import NODE_ID_SIZE, IpAddrPort, NodeID, NodeInfo, RoutingTable
@@ -87,7 +88,9 @@ class BitTorrentDHTClient:
         with open(path, "rb") as f:
             self.routing_table.import_data(f.read())
 
-    def send_krpc_request(self, krpc_packet: KRPCPacket, addr: IpAddrPort) -> Request:
+    def send_krpc_request(
+        self, krpc_packet: KRPCQueryPacket, addr: IpAddrPort
+    ) -> Request:
         request = TimedRequest((krpc_packet, addr), REQUEST_TIMEOUT)
         self.request_handler.add_request(request)
 
