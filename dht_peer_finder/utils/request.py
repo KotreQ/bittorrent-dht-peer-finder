@@ -1,6 +1,6 @@
 import threading
 import time
-from collections import deque
+from collections import defaultdict, deque
 from typing import Any
 
 
@@ -76,3 +76,12 @@ class RequestHandler:
                 filter(lambda request: request.should_process(), self._queue)
             )
             return list(self._queue)
+
+    def to_dict(self, func) -> dict[Any, list[Request]]:
+        # group requests by specified func
+        result = defaultdict(list)
+
+        for request in self.to_list():
+            result[func(request)].append(request)
+
+        return dict(result)

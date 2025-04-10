@@ -9,6 +9,7 @@ from .dht_exceptions import KRPCPacketError, KRPCRequestError
 from .dht_packets import (
     KRPCFindNodeQueryPacket,
     KRPCPacket,
+    KRPCPacketType,
     KRPCPingQueryPacket,
     KRPCQueryPacket,
     KRPCResponsePacket,
@@ -101,6 +102,8 @@ class BitTorrentDHTClient:
 
         return request
 
+    def resolve_krpc_query(self, krpc_packet: KRPCQueryPacket, addr: IpAddrPort): ...
+
     def listener_worker(self):
         while True:
             try:
@@ -115,28 +118,41 @@ class BitTorrentDHTClient:
             except KRPCPacketError:
                 continue
 
-            for unresolved_request in self.request_handler.to_list():
-                request_packet, request_addr = unresolved_request.input_data
+            transaction_requests = self.request_handler.to_dict(
+                lambda request: request.input_data[0].transaction_id
+            ).get(recv_krpc_packet.transaction_id, [])
 
-                required_response_type = KRPCResponsePacket.create_type(
-                    request_packet.METHOD_TYPE
-                )
+            match recv_krpc_packet.PACKET_TYPE:
+                case KRPCPacketType.RESPONSE:
+                    for unresolved_request in transaction_requests:
+                        request_packet, request_addr = unresolved_request.input_data
 
-                if (
-                    recv_krpc_packet.same_transaction(request_packet)
-                    and recv_addr == request_addr
-                ):
-                    try:
-                        # check if packet is of valid type
-                        recv_krpc_packet = required_response_type.from_bencoded(
-                            recv_data
-                        )
-                        success = True
-                    except KRPCPacketError:
-                        success = False
+                        if recv_addr == request_addr:
+                            try:
+                                # check if packet is of valid type
+                                required_response_type = KRPCResponsePacket.create_type(
+                                    request_packet.METHOD_TYPE
+                                )
+                                recv_krpc_packet = required_response_type.from_bencoded(
+                                    recv_data
+                                )
+                                success = True
+                            except KRPCPacketError:
+                                success = False
 
-                    unresolved_request.resolve(recv_krpc_packet, success)
-                    break
+                            unresolved_request.resolve(recv_krpc_packet, success)
+                            break
+
+                case KRPCPacketType.ERROR:
+                    for unresolved_request in transaction_requests:
+                        request_packet, request_addr = unresolved_request.input_data
+
+                        if recv_addr == request_addr:
+                            unresolved_request.resolve(recv_krpc_packet, False)
+                            break
+
+                case KRPCPacketType.QUERY:
+                    self.resolve_krpc_query(recv_krpc_packet, recv_addr)
 
     def check_nodes_connectivity(
         self, nodes: Iterable[NodeInfo], *, strict_check: bool = False
