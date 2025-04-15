@@ -8,6 +8,7 @@ from typing import Iterable
 from .dht_exceptions import KRPCPacketError, KRPCRequestError
 from .dht_packets import (
     KRPCFindNodeQueryPacket,
+    KRPCFindNodeResponsePacket,
     KRPCMethodType,
     KRPCPacket,
     KRPCPacketType,
@@ -33,6 +34,8 @@ REQUEST_TIMEOUT = 2
 ACTIVE_CHECK_DURATION = 30
 
 CLOSEST_RESPONSE_COUNT = 16
+
+FIND_NODE_RESPONSE_SIZE = 8
 
 
 DEFAULT_CACHE_PATH = "./.cache/btdht.bin"
@@ -109,6 +112,19 @@ class BitTorrentDHTClient:
             case KRPCMethodType.PING:
                 response_packet = KRPCPingResponsePacket(
                     {b"id": self.node_id.node_id}, krpc_packet.transaction_id
+                )
+
+            case KRPCMethodType.FIND_NODE:
+                target_node_id = NodeID(krpc_packet.arguments[b"target"])
+                nodes_info = self.routing_table.get_closest(
+                    target_node_id, FIND_NODE_RESPONSE_SIZE
+                )
+                compact_nodes_info = b"".join(
+                    node_info.to_compact() for node_info in nodes_info
+                )
+                response_packet = KRPCFindNodeResponsePacket(
+                    {b"id": self.node_id.node_id, b"nodes": compact_nodes_info},
+                    krpc_packet.transaction_id,
                 )
 
         self.sock.sendto(response_packet.to_bencoded(), addr.to_tuple())
