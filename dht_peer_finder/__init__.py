@@ -8,9 +8,11 @@ from typing import Iterable
 from .dht_exceptions import KRPCPacketError, KRPCRequestError
 from .dht_packets import (
     KRPCFindNodeQueryPacket,
+    KRPCMethodType,
     KRPCPacket,
     KRPCPacketType,
     KRPCPingQueryPacket,
+    KRPCPingResponsePacket,
     KRPCQueryPacket,
     KRPCResponsePacket,
 )
@@ -102,7 +104,14 @@ class BitTorrentDHTClient:
 
         return request
 
-    def resolve_krpc_query(self, krpc_packet: KRPCQueryPacket, addr: IpAddrPort): ...
+    def resolve_krpc_query(self, krpc_packet: KRPCQueryPacket, addr: IpAddrPort):
+        match krpc_packet.METHOD_TYPE:
+            case KRPCMethodType.PING:
+                response_packet = KRPCPingResponsePacket(
+                    {b"id": self.node_id.node_id}, krpc_packet.transaction_id
+                )
+
+        self.sock.sendto(response_packet.to_bencoded(), addr.to_tuple())
 
     def listener_worker(self):
         while True:
